@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Star Nails NFC</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px 20px;
+      background: #f5f8ff;
+    }
+
+    .box {
+      background: white;
+      padding: 30px 20px;
+      border-radius: 18px;
+      max-width: 420px;
+      margin: auto;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+    }
+
+    h1 {
+      color: #1565c0;
+    }
+
+    button {
+      width: 90%;
+      padding: 16px;
+      font-size: 20px;
+      font-weight: bold;
+      color: white;
+      background: #2e7d32;
+      border: none;
+      border-radius: 10px;
+    }
+
+    #status {
+      margin-top: 25px;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="box">
+
+  <h1>⭐ Star Nails</h1>
+
+  <p>NFC Employee Scanner</p>
+
+  <button onclick="startNFC()">
+    📱 START NFC SCAN
+  </button>
+
+  <div id="status">
+    System is ready
+  </div>
+
+</div>
+
+<script>
+
+async function startNFC() {
+
+  const status = document.getElementById("status");
+
+  if (!("NDEFReader" in window)) {
+
+    status.innerHTML =
+      "❌ Web NFC is not supported.";
+
+    return;
+  }
+
+  try {
+
+    const ndef = new NDEFReader();
+
+    await ndef.scan();
+
+    status.innerHTML =
+      "📱 NFC is ready.<br>" +
+      "Tap the employee card on the phone.";
+
+    ndef.onreading = function(event) {
+
+      let employeeId = "";
+
+      for (const record of event.message.records) {
+
+        if (record.recordType === "text") {
+
+          try {
+
+            const decoder =
+              new TextDecoder(record.encoding || "utf-8");
+
+            employeeId =
+              decoder.decode(record.data);
+
+          } catch (error) {
+
+            employeeId = "";
+          }
+        }
+      }
+
+      employeeId = employeeId.trim();
+
+      if (employeeId) {
+
+        status.innerHTML =
+          "✅ NFC CARD DETECTED!<br><br>" +
+          "Employee ID: <strong>" +
+          employeeId +
+          "</strong>";
+
+      } else {
+
+        status.innerHTML =
+          "⚠️ Card detected, but no text was found.";
+
+      }
+
+    };
+
+    ndef.onreadingerror = function() {
+
+      status.innerHTML =
+        "❌ Cannot read this NFC card.";
+
+    };
+
+  } catch (error) {
+
+    status.innerHTML =
+      "❌ NFC ERROR<br>" +
+      error.message;
+
+  }
+}
+
+</script>
+
+</body>
+</html>
