@@ -1,150 +1,214 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Star Nails NFC</title>
+  <title>Star Nails NFC Employee System</title>
 
   <style>
+    * { box-sizing: border-box; }
+
     body {
       font-family: Arial, sans-serif;
+      background: #eef4ff;
+      color: #17365d;
+      margin: 0;
+      padding: 20px;
       text-align: center;
-      padding: 40px 20px;
-      background: #f5f8ff;
     }
 
-    .box {
+    .container {
+      max-width: 460px;
+      margin: 20px auto;
       background: white;
-      padding: 30px 20px;
+      padding: 24px;
       border-radius: 18px;
-      max-width: 420px;
-      margin: auto;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.15);
+      box-shadow: 0 4px 18px rgba(0,0,0,0.10);
     }
 
     h1 {
-      color: #1565c0;
+      color: #1456a0;
+      font-size: 27px;
+      margin-bottom: 8px;
     }
 
-    button {
-      width: 90%;
-      padding: 16px;
-      font-size: 20px;
-      font-weight: bold;
-      color: white;
-      background: #2e7d32;
-      border: none;
-      border-radius: 10px;
+    .subtitle {
+      color: #5c6f85;
+      margin-bottom: 24px;
     }
 
     #status {
-      margin-top: 25px;
+      background: #f1f5f9;
+      border-radius: 10px;
+      padding: 14px;
+      margin: 18px 0;
+      overflow-wrap: anywhere;
+    }
+
+    #employee {
+      font-size: 23px;
+      font-weight: bold;
+      margin: 18px 0;
+    }
+
+    button {
+      width: 100%;
+      padding: 16px;
+      margin: 8px 0;
+      border: none;
+      border-radius: 10px;
       font-size: 18px;
+      font-weight: bold;
+      color: white;
+      cursor: pointer;
+    }
+
+    #scanButton { background: #2563eb; }
+    #clockInButton { background: #16803c; }
+    #clockOutButton { background: #d97706; }
+
+    button:disabled {
+      background: #aab4c3;
+      cursor: not-allowed;
+    }
+
+    .note {
+      font-size: 13px;
+      color: #64748b;
       line-height: 1.5;
+      margin-top: 18px;
     }
   </style>
 </head>
 
 <body>
+  <div class="container">
+    <h1>Star Nails</h1>
+    <div class="subtitle">NFC Employee Attendance System</div>
 
-<div class="box">
+    <button id="scanButton">SCAN NFC CARD</button>
 
-  <h1>⭐ Star Nails</h1>
+    <div id="status">System is ready. Tap Scan NFC Card to begin.</div>
 
-  <p>NFC Employee Scanner</p>
+    <div id="employee">No employee scanned</div>
 
-  <button onclick="startNFC()">
-    📱 START NFC SCAN
-  </button>
+    <button id="clockInButton" disabled>CLOCK IN</button>
+    <button id="clockOutButton" disabled>CLOCK OUT</button>
 
-  <div id="status">
-    System is ready
+    <div class="note">
+      Scan your employee card first, then choose Clock In or Clock Out.
+      Do not tap either attendance button unless you intend to record a time.
+    </div>
   </div>
 
-</div>
+  <script>
+    const WEB_APP_URL =
+      'https://script.google.com/macros/s/AKfycbw-qSLiTKPvcUGmAuUt5t1Xy47l3_PML-OJTFRoIGWXZeBfZcYWgQs1SW34P_0aR-cAsQ/exec';
 
-<script>
+    const scanButton = document.getElementById('scanButton');
+    const clockInButton = document.getElementById('clockInButton');
+    const clockOutButton = document.getElementById('clockOutButton');
+    const statusBox = document.getElementById('status');
+    const employeeBox = document.getElementById('employee');
 
-async function startNFC() {
+    let scannedEmployeeId = '';
+    let scanning = false;
 
-  const status = document.getElementById("status");
+    function setStatus(message) {
+      statusBox.textContent = message;
+    }
 
-  if (!("NDEFReader" in window)) {
+    scanButton.addEventListener('click', async () => {
+      if (scanning) return;
 
-    status.innerHTML =
-      "❌ Web NFC is not supported.";
+      if (!('NDEFReader' in window)) {
+        setStatus('NFC is not supported here. Open this page in Chrome on your phone.');
+        return;
+      }
 
-    return;
-  }
+      try {
+        scanning = true;
+        scannedEmployeeId = '';
+        clockInButton.disabled = true;
+        clockOutButton.disabled = true;
+        employeeBox.textContent = 'Waiting for NFC card...';
+        setStatus('Hold your employee NFC card near the back of your phone.');
 
-  try {
+        const ndef = new NDEFReader();
 
-    const ndef = new NDEFReader();
+        ndef.onreadingerror = () => {
+          setStatus('Could not read this card. Try holding it near the phone again.');
+        };
 
-    await ndef.scan();
+        ndef.onreading = (event) => {
+          for (const record of event.message.records) {
+            if (record.recordType !== 'text') continue;
 
-    status.innerHTML =
-      "📱 NFC is ready.<br>" +
-      "Tap the employee card on the phone.";
+            const payload = new Uint8Array(record.data);
+            if (payload.length < 2) continue;
 
-    ndef.onreading = function(event) {
+            const languageLength = payload[0] & 0x3f;
+            const text = new TextDecoder().decode(
+              payload.slice(1 + languageLength)
+            ).trim();
 
-      let employeeId = "";
+            if (/^P\d+$/i.test(text)) {
+              scannedEmployeeId = text.toUpperCase();
+              employeeBox.textContent =
+                'Employee ID: ' + scannedEmployeeId;
 
-      for (const record of event.message.records) {
-
-        if (record.recordType === "text") {
-
-          try {
-
-            const decoder =
-              new TextDecoder(record.encoding || "utf-8");
-
-            employeeId =
-              decoder.decode(record.data);
-
-          } catch (error) {
-
-            employeeId = "";
+              setStatus('Card read successfully. Choose Clock In or Clock Out.');
+              clockInButton.disabled = false;
+              clockOutButton.disabled = false;
+              scanning = false;
+              return;
+            }
           }
-        }
+
+          setStatus('Card detected, but no employee ID such as P001 was found.');
+          scanning = false;
+        };
+
+        await ndef.scan();
+        setStatus('NFC scanning started. Hold your card near the phone.');
+
+      } catch (error) {
+        scanning = false;
+        setStatus('NFC error: ' + error.message);
+      }
+    });
+
+    function recordAttendance(action) {
+      if (!scannedEmployeeId) {
+        setStatus('Please scan your employee card first.');
+        return;
       }
 
-      employeeId = employeeId.trim();
+      const confirmed = confirm(
+        'Record ' + action.toUpperCase() +
+        ' for employee ' + scannedEmployeeId + '?'
+      );
 
-      if (employeeId) {
+      if (!confirmed) return;
 
-        status.innerHTML =
-          "✅ NFC CARD DETECTED!<br><br>" +
-          "Employee ID: <strong>" +
-          employeeId +
-          "</strong>";
+      setStatus('Sending attendance record...');
+      clockInButton.disabled = true;
+      clockOutButton.disabled = true;
 
-      } else {
+      const url = WEB_APP_URL +
+        '?action=' + encodeURIComponent(action) +
+        '&employeeId=' + encodeURIComponent(scannedEmployeeId);
 
-        status.innerHTML =
-          "⚠️ Card detected, but no text was found.";
+      window.location.href = url;
+    }
 
-      }
+    clockInButton.addEventListener('click', () => {
+      recordAttendance('clockIn');
+    });
 
-    };
-
-    ndef.onreadingerror = function() {
-
-      status.innerHTML =
-        "❌ Cannot read this NFC card.";
-
-    };
-
-  } catch (error) {
-
-    status.innerHTML =
-      "❌ NFC ERROR<br>" +
-      error.message;
-
-  }
-}
-
-</script>
-
+    clockOutButton.addEventListener('click', () => {
+      recordAttendance('clockOut');
+    });
+  </script>
 </body>
 </html>
