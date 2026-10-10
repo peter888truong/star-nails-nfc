@@ -140,32 +140,39 @@
           setStatus('Could not read this card. Try holding it near the phone again.');
         };
        
-ndef.onreading = (event) => {
+  
+ndef.onreading = async (event) => {
   const details = [];
   let foundId = '';
 
   for (const record of event.message.records) {
-    const bytes = new Uint8Array(record.data);
-    const raw = new TextDecoder().decode(bytes).trim();
+    try {
+      const data = await record.data.arrayBuffer();
+      const bytes = new Uint8Array(data);
 
-    let text = '';
+      let text = '';
 
-    if (record.recordType === 'text' && bytes.length > 0) {
-      const languageLength = bytes[0] & 0x3f;
-      text = new TextDecoder()
-        .decode(bytes.slice(1 + languageLength))
-        .trim();
-    }
+      if (record.recordType === 'text' && bytes.length >= 3) {
+        const languageLength = bytes[0] & 0x3f;
+        text = new TextDecoder().decode(
+          bytes.slice(1 + languageLength)
+        ).trim();
+      }
 
-    details.push(
-      'Type: ' + record.recordType +
-      ' | Raw: ' + JSON.stringify(raw) +
-      ' | Text: ' + JSON.stringify(text)
-    );
+      const raw = new TextDecoder().decode(bytes).trim();
 
-    const match = (text || raw).match(/\bP\d+\b/i);
-    if (match) {
-      foundId = match[0].toUpperCase();
+      details.push(
+        'Type=' + record.recordType +
+        ', bytes=' + bytes.length +
+        ', raw=' + JSON.stringify(raw) +
+        ', text=' + JSON.stringify(text)
+      );
+
+      const match = (text + ' ' + raw).match(/\bP\d+\b/i);
+      if (match) foundId = match[0].toUpperCase();
+
+    } catch (error) {
+      details.push('Read error: ' + error.message);
     }
   }
 
@@ -176,13 +183,16 @@ ndef.onreading = (event) => {
     clockInButton.disabled = false;
     clockOutButton.disabled = false;
   } else {
+    scannedEmployeeId = '';
     employeeBox.textContent = 'Employee ID not identified';
-    setStatus('NFC data: ' + details.join(' || '));
+    clockInButton.disabled = true;
+    clockOutButton.disabled = true;
+    setStatus('NFC data: ' + details.join(' | '));
   }
 
   scanning = false;
 };
-   
+
         await ndef.scan();
         setStatus('NFC scanning started. Hold your card near the phone.');
 
