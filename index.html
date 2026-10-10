@@ -147,8 +147,11 @@ ndef.onreading = async (event) => {
 
   for (const record of event.message.records) {
     try {
-      const data = await record.data.arrayBuffer();
-      const bytes = new Uint8Array(data);
+const bytes = new Uint8Array(
+  record.data.buffer,
+  record.data.byteOffset,
+  record.data.byteLength
+);
 
       let text = '';
 
